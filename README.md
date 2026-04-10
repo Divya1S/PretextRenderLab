@@ -32,8 +32,8 @@ This project explores an alternative approach:
 
 <h2>🚀 Live Demo</h2>
 <ul>
-  <li><a [href="https://your-link.netlify.app](https://chronicalpretext.netlify.app)">Chronicle Feed</a></li>
-  <li><a "https://chronicalpretext.netlify.app">Virtualized Chat</a></li>
+  <li><a href="https://chronicalpretext.netlify.app" target="_blank">Chronicle Feed</a></li>
+  <li><a href="https://chronicalpretext.netlify.app" target="_blank">Virtualized Chat</a></li>
 </ul>
 
 <h2>📂 Projects</h2>
