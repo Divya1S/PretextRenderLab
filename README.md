@@ -3,10 +3,6 @@
   Experimental UI Systems for <b>Zero-DOM-Reflow Rendering</b>
 </p>
 
-<p align="center">
-  <a href="https://your-netlify-link.netlify.app](https://whimsical-gingersnap-2f5e8a.netlify.app">🌐 Live Demo</a>
-</p>
-
 <hr/>
 
 <h2>🧠 Overview</h2>
