@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — Pretext Masonry Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Syne:wght@400;500;600;700;800&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08060A;
+  --bg2:#0F0D14;
+  --bg3:#16131E;
+  --bg4:#1E1B28;
+  --gold:#C9A84C;
+  --gold2:rgba(201,168,76,0.14);
+  --gold3:rgba(201,168,76,0.06);
+  --red:#C0392B;
+  --red2:rgba(192,57,43,0.15);
+  --teal:#2EC4B6;
+  --teal2:rgba(46,196,182,0.12);
+  --text:#E2D9C8;
+  --text2:#A89F8C;
+  --text3:#6B6255;
+  --border:rgba(201,168,76,0.10);
+  --border2:rgba(201,168,76,0.18);
+  --card-bg:#0C0A12;
+  --f-head:'Cormorant Garamond',serif;
+  --f-ui:'Syne',sans-serif;
+  --f-mono:'Azeret Mono',monospace;
+  --r:6px;
+  --r2:10px;
+  --col:4;
+  --gap:14px;
+}
+
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f-mono);overflow:hidden}
+
+/* ── MASTHEAD ── */
+.masthead{
+  display:flex;align-items:center;gap:1.25rem;
+  height:58px;padding:0 1.5rem;
+  border-bottom:1px solid var(--border2);
+  background:rgba(8,6,10,0.96);
+  backdrop-filter:blur(20px);
+  position:relative;z-index:100;
+  flex-shrink:0;
+}
+.logo{
+  font-family:var(--f-ui);font-weight:800;font-size:1.35rem;
+  letter-spacing:-.03em;color:#fff;
+  display:flex;align-items:baseline;gap:.4rem;
+}
+.logo span{color:var(--gold)}
+.pretext-badge{
+  font-family:var(--f-mono);font-size:.6rem;font-weight:500;
+  color:var(--gold);border:1px solid rgba(201,168,76,.35);
+  padding:2px 8px;border-radius:3px;letter-spacing:.08em;
+  text-transform:uppercase;flex-shrink:0;
+}
+.masthead-metrics{
+  display:flex;gap:1.75rem;margin-left:auto;
+  font-size:.65rem;font-family:var(--f-mono);
+}
+.mm{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.mm-val{
+  font-size:.8rem;font-weight:500;color:#fff;
+  font-variant-numeric:tabular-nums;
+  transition:color .3s;
+}
+.mm-val.zero{color:var(--teal)}
+.mm-val.active{color:var(--gold)}
+.mm-label{color:var(--text3);letter-spacing:.05em;font-size:.58rem;text-transform:uppercase}
+.divider-v{width:1px;background:var(--border);flex-shrink:0;align-self:stretch;margin:12px 0}
+
+/* ── CONTROLS ── */
+.controls{
+  display:flex;align-items:center;gap:1rem;
+  padding:.75rem 1.5rem;
+  border-bottom:1px solid var(--border);
+  background:rgba(15,13,20,0.8);
+  flex-shrink:0;
+}
+.search-wrap{
+  position:relative;flex:0 0 260px;
+}
+.search-wrap svg{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  opacity:.4;pointer-events:none;
+}
+.search-input{
+  width:100%;background:var(--bg3);
+  border:1px solid var(--border);border-radius:var(--r);
+  padding:.45rem .75rem .45rem 2rem;
+  font-family:var(--f-mono);font-size:.72rem;
+  color:var(--text);outline:none;
+  transition:border-color .2s;
+}
+.search-input:focus{border-color:rgba(201,168,76,.4)}
+.search-input::placeholder{color:var(--text3)}
+
+.cats{display:flex;gap:.4rem;flex-wrap:wrap}
+.cat-btn{
+  font-family:var(--f-mono);font-size:.62rem;font-weight:500;
+  letter-spacing:.06em;text-transform:uppercase;
+  padding:.3rem .75rem;border-radius:20px;cursor:pointer;
+  border:1px solid var(--border);
+  background:transparent;color:var(--text2);
+  transition:all .15s;
+}
+.cat-btn:hover{border-color:var(--border2);color:var(--text)}
+.cat-btn.active{background:var(--gold2);border-color:var(--gold);color:var(--gold)}
+.cat-btn[data-cat="Breaking"]{--col-a:var(--red);--col-b:var(--red2)}
+.cat-btn[data-cat="Breaking"].active{background:var(--red2);border-color:var(--red);color:var(--red)}
+.cat-btn[data-cat="Science"].active{background:var(--teal2);border-color:var(--teal);color:var(--teal)}
+
+.sort-btn{
+  margin-left:auto;font-family:var(--f-mono);font-size:.65rem;
+  padding:.3rem .9rem;border-radius:var(--r);cursor:pointer;
+  border:1px solid var(--border);background:var(--bg3);
+  color:var(--text2);transition:all .15s;display:flex;align-items:center;gap:.4rem;
+}
+.sort-btn:hover{color:var(--text);border-color:var(--border2)}
+
+/* ── GRID VIEWPORT ── */
+.grid-viewport{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  position:relative;
+  scroll-behavior:auto;
+}
+.grid-viewport::-webkit-scrollbar{width:4px}
+.grid-viewport::-webkit-scrollbar-track{background:transparent}
+.grid-viewport::-webkit-scrollbar-thumb{background:rgba(201,168,76,.2);border-radius:2px}
+
+.grid-inner{position:relative;width:100%;}
+.grid-canvas{
+  position:absolute;top:0;left:0;right:0;
+  padding:var(--gap);
+}
+
+/* ── CARDS ── */
+.card{
+  position:absolute;
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-radius:var(--r2);
+  overflow:hidden;
+  transition:border-color .2s, transform .15s;
+  cursor:pointer;
+}
+.card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.card.breaking{border-color:rgba(192,57,43,.35)}
+.card.breaking:hover{border-color:rgba(192,57,43,.6)}
+.card.featured{border-color:rgba(201,168,76,.25)}
+
+.card-img{width:100%;object-fit:cover;display:block;flex-shrink:0}
+.card-body{padding:.85rem}
+.card-meta-top{
+  display:flex;align-items:center;gap:.5rem;
+  margin-bottom:.55rem;
+}
+.cat-pill{
+  font-family:var(--f-mono);font-size:.55rem;font-weight:500;
+  letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 8px;border-radius:3px;
+}
+.cat-pill.Tech{background:rgba(101,143,255,.12);color:#6599FF}
+.cat-pill.Science{background:rgba(46,196,182,.12);color:var(--teal)}
+.cat-pill.Business{background:rgba(201,168,76,.12);color:var(--gold)}
+.cat-pill.Culture{background:rgba(192,101,214,.12);color:#C065D6}
+.cat-pill.Health{background:rgba(82,196,102,.12);color:#52C466}
+.cat-pill.Politics{background:rgba(255,130,78,.12);color:#FF824E}
+.cat-pill.Breaking{background:rgba(192,57,43,.18);color:#E05050}
+.card-ago{font-size:.6rem;color:var(--text3);margin-left:auto}
+
+.card-title{
+  font-family:var(--f-head);
+  font-weight:600;
+  color:var(--text);
+  line-height:1.28;
+  margin-bottom:.5rem;
+}
+.card.compact .card-title{margin-bottom:.35rem}
+.card-excerpt{
+  font-family:var(--f-mono);font-size:.68rem;
+  color:var(--text2);line-height:1.7;
+  margin-bottom:.65rem;
+}
+.card-meta-bot{
+  display:flex;align-items:center;gap:.5rem;
+  font-size:.6rem;color:var(--text3);font-family:var(--f-mono);
+}
+.card-author{color:var(--text2);font-weight:500}
+.meta-sep{opacity:.3}
+.card-actions{margin-left:auto;display:flex;gap:.85rem}
+.action-btn{
+  display:flex;align-items:center;gap:3px;
+  font-size:.6rem;color:var(--text3);
+  transition:color .15s;cursor:pointer;
+  user-select:none;
+}
+.action-btn:hover{color:var(--text)}
+.action-btn.liked{color:var(--red)}
+.breaking-flag{
+  display:flex;align-items:center;gap:.4rem;
+  font-family:var(--f-mono);font-size:.58rem;font-weight:500;
+  color:var(--red);letter-spacing:.08em;text-transform:uppercase;
+  margin-bottom:.4rem;
+}
+.breaking-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--red);animation:pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+
+/* ── PERFORMANCE HUD ── */
+.perf-hud{
+  position:fixed;bottom:1.25rem;right:1.25rem;
+  background:rgba(12,10,18,0.95);
+  border:1px solid var(--border2);border-radius:var(--r2);
+  padding:1rem 1.15rem;
+  width:220px;
+  backdrop-filter:blur(20px);
+  z-index:200;
+  font-family:var(--f-mono);
+}
+.hud-title{
+  font-family:var(--f-ui);font-size:.65rem;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:.75rem;
+  display:flex;align-items:center;gap:.5rem;
+}
+.hud-title::before{
+  content:'';width:6px;height:6px;border-radius:50%;
+  background:var(--teal);animation:pulse 2s ease-in-out infinite;
+}
+.hud-row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,0.04);
+  font-size:.65rem;
+}
+.hud-row:last-child{border-bottom:none;margin-top:.1rem}
+.hud-key{color:var(--text3)}
+.hud-val{font-weight:500;font-variant-numeric:tabular-nums}
+.hud-val.good{color:var(--teal)}
+.hud-val.warn{color:var(--gold)}
+.hud-val.hi{color:#fff}
+.hud-compare{
+  margin-top:.85rem;padding-top:.85rem;
+  border-top:1px solid var(--border);
+  font-size:.6rem;
+}
+.hud-compare-label{color:var(--text3);margin-bottom:.35rem;letter-spacing:.04em}
+.hud-bar-wrap{display:flex;flex-direction:column;gap:.3rem}
+.hud-bar-row{display:flex;align-items:center;gap:.4rem}
+.hud-bar-name{width:46px;font-size:.58rem;color:var(--text3);flex-shrink:0}
+.hud-bar-bg{flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.hud-bar-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.bar-pretext{background:var(--teal)}
+.bar-dom{background:rgba(192,57,43,.7)}
+.hud-bar-num{font-size:.58rem;color:var(--text3);min-width:26px;text-align:right}
+
+/* ── LOADING OVERLAY ── */
+.loading{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:999;gap:1rem;transition:opacity .4s;
+}
+.loading.fade{opacity:0;pointer-events:none}
+.loading-logo{font-family:var(--f-ui);font-size:2rem;font-weight:800;color:#fff}
+.loading-logo span{color:var(--gold)}
+.loading-sub{font-family:var(--f-mono);font-size:.7rem;color:var(--text3);letter-spacing:.05em}
+.progress-bar{
+  width:200px;height:2px;background:var(--bg3);border-radius:1px;overflow:hidden;
+}
+.progress-fill{height:100%;background:var(--gold);border-radius:1px;width:0;transition:width .05s linear}
+
+/* ── LAYOUT ── */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* ── EMPTY ── */
+.empty{
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  flex:1;gap:.75rem;
+  font-family:var(--f-mono);
+}
+.empty.show{display:flex}
+.empty-icon{font-size:2rem;opacity:.3}
+.empty-text{font-size:.75rem;color:var(--text3)}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="loading-logo">Chron<span>icle</span></div>
+  <div class="loading-sub">Pretext engine initializing &bull; measuring text heights&hellip;</div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<div class="app" id="app" style="visibility:hidden">
+  <!-- MASTHEAD -->
+  <header class="masthead">
+    <div class="logo">Chron<span>icle</span></div>
+    <div class="pretext-badge">Pretext Engine</div>
+    <div class="divider-v"></div>
+    <div class="masthead-metrics">
+      <div class="mm">
+        <div class="mm-val active" id="m-total">500</div>
+        <div class="mm-label">Articles</div>
+      </div>
+      <div class="mm">
+        <div class="mm-val" id="m-rendered">—</div>
+        <div class="mm-label">Rendered</div>
+      </div>
+      <div class="mm">
+        <div class="mm-val zero" id="m-reflows">0</div>
+        <div class="mm-label">Reflows</div>
+      </div>
+      <div class="mm">
+        <div class="mm-val zero" id="m-shift">0ms</div>
+        <div class="mm-label">Layout Shift</div>
+      </div>
+      <div class="mm">
+        <div class="mm-val" id="m-measured">—</div>
+        <div class="mm-label">Pre-measured</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <div class="search-wrap">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input class="search-input" type="text" id="searchInput" placeholder="Search articles…">
+    </div>
+    <div class="cats" id="catBtns">
+      <button class="cat-btn active" data-cat="All">All</button>
+      <button class="cat-btn" data-cat="Breaking">Breaking</button>
+      <button class="cat-btn" data-cat="Tech">Tech</button>
+      <button class="cat-btn" data-cat="Science">Science</button>
+      <button class="cat-btn" data-cat="Business">Business</button>
+      <button class="cat-btn" data-cat="Culture">Culture</button>
+      <button class="cat-btn" data-cat="Health">Health</button>
+      <button class="cat-btn" data-cat="Politics">Politics</button>
+    </div>
+    <button class="sort-btn" id="sortBtn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+      Latest
+    </button>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid-viewport" id="viewport">
+    <div class="grid-inner" id="gridInner">
+      <div class="grid-canvas" id="gridCanvas"></div>
+    </div>
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">◇</div>
+      <div class="empty-text">No articles match your search</div>
+    </div>
+  </div>
+</div>
+
+<!-- PERF HUD -->
+<div class="perf-hud" id="perfHud">
+  <div class="hud-title">Live Performance</div>
+  <div class="hud-row"><span class="hud-key">Engine</span><span class="hud-val good">Pretext Canvas</span></div>
+  <div class="hud-row"><span class="hud-key">DOM Reflows</span><span class="hud-val good" id="h-reflows">0</span></div>
+  <div class="hud-row"><span class="hud-key">Heights cached</span><span class="hud-val hi" id="h-cached">0</span></div>
+  <div class="hud-row"><span class="hud-key">Visible cards</span><span class="hud-val warn" id="h-visible">0</span></div>
+  <div class="hud-row"><span class="hud-key">Total cards</span><span class="hud-val hi" id="h-total">500</span></div>
+  <div class="hud-row"><span class="hud-key">Measure time</span><span class="hud-val good" id="h-time">—</span></div>
+  <div class="hud-compare">
+    <div class="hud-compare-label">Reflows: Pretext vs DOM</div>
+    <div class="hud-bar-wrap">
+      <div class="hud-bar-row">
+        <div class="hud-bar-name">Pretext</div>
+        <div class="hud-bar-bg"><div class="hud-bar-fill bar-pretext" style="width:0.5%"></div></div>
+        <div class="hud-bar-num hud-val good">0</div>
+      </div>
+      <div class="hud-bar-row">
+        <div class="hud-bar-name">DOM API</div>
+        <div class="hud-bar-bg"><div class="hud-bar-fill bar-dom" id="domBar" style="width:100%"></div></div>
+        <div class="hud-bar-num hud-val" id="domBarNum" style="color:rgba(192,57,43,.8)">500</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// PRETEXT ENGINE — Canvas-based text measurement
+// Mirrors @chenglou/pretext API: prepare() + layout()
+// Bypasses getBoundingClientRect/offsetHeight — zero DOM reflows
+// ─────────────────────────────────────────────────────────────────
+const Pretext = (() => {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const _cache = new Map();
+  let _measureCount = 0;
+
+  function prepare(text, fontStr) {
+    return { text: String(text), fontStr };
+  }
+
+  function layout(handle, containerWidth, lineHeight) {
+    const key = `${handle.fontStr}|${containerWidth}|${handle.text}`;
+    if (_cache.has(key)) return _cache.get(key);
+    _measureCount++;
+
+    ctx.font = handle.fontStr;
+    const words = handle.text.split(' ');
+    let lines = 1, curW = 0;
+    const spW = ctx.measureText(' ').width;
+
+    for (const w of words) {
+      if (!w) continue;
+      const ww = ctx.measureText(w).width;
+      if (curW > 0 && curW + ww > containerWidth) {
+        lines++;
+        curW = ww + spW;
+      } else {
+        curW += ww + spW;
+      }
+    }
+
+    const result = { height: Math.ceil(lines * lineHeight), lineCount: lines };
+    _cache.set(key, result);
+    return result;
+  }
+
+  return { prepare, layout, cacheSize: () => _cache.size, measureCount: () => _measureCount };
+})();
+
+// ─────────────────────────────────────────────────────────────────
+// DATA GENERATION — 500 realistic articles
+// ─────────────────────────────────────────────────────────────────
+const CATS = ['Tech','Tech','Science','Business','Culture','Health','Politics','Breaking'];
+const AUTHORS = [
+  'Sarah Chen','Marcus Webb','Priya Nair','Tom Hargrove','Lena Fischer',
+  'James Okonkwo','Diana Reyes','Arjun Mehta','Claire Duval','Ben Nakamura',
+  'Sofia Alves','Daniel Park','Elena Vasquez','Noah Osei','Mia Thornton'
+];
+
+const TITLE_BANKS = {
+  Tech: [
+    'Anthropic Releases Benchmark-Shattering Model With 99.7% Reasoning Accuracy',
+    'New GPU Architecture Promises 40x Throughput at Half the Power Draw',
+    'Rust Overtakes Python as Most-Used Language in ML Infrastructure',
+    'Open-Source Browser Engine Challenges Chromium\'s Decade of Dominance',
+    'Apple Intelligence Quietly Rewrites How On-Device AI Works',
+    'Quantum Error Correction Hits Commercial-Grade Threshold',
+    'WebAssembly 3.0 Lands Native Threads and Shared Memory',
+    'The Quiet Revolution Inside Your Next SSD Controller',
+    'How Pretext Killed Layout Thrashing in One 15KB Package',
+    'TypeScript 6.0 Inference Engine Rebuilds From the Ground Up',
+    'Edge Computing Reaches Millisecond Latency for Neural Inference',
+    'The Team That Built a Browser Engine in Eighteen Months',
+    'Why Frontend Performance Is the New User Experience Battleground',
+    'Figma\'s New Developer Mode Closes the Design-to-Code Gap',
+    'Virtual DOM Is Finally Dead. Here\'s What Killed It.',
+    'React 21 Ships Without a Virtual DOM',
+  ],
+  Science: [
+    'Researchers Fold Proteins in Milliseconds Using New Diffusion Architecture',
+    'CRISPR Therapy Reverses Hearing Loss in Clinical Trial Patients',
+    'Scientists Detect Carbon Signatures on Europa\'s Subsurface Ocean',
+    'New Material Stores Solar Energy at Room Temperature for Six Months',
+    'Archaeologists Unearth 12,000-Year-Old Writing System in Anatolia',
+    'Dark Matter Signal Detected Beneath Italian Alps for Second Time',
+    'Lab-Grown Neurons Compute Faster Than Silicon at Fraction of the Energy',
+    'Webb Telescope Captures Earliest Galaxy Ever Observed',
+    'Longevity Drug Extends Lifespan by 23% in Primate Study',
+    'Ocean Bacteria That Eats Methane Could Be a Climate Game Changer',
+  ],
+  Business: [
+    'Sequoia Leads $800M Round in AI Infrastructure Startup Nobody\'s Heard Of',
+    'Amazon Quietly Acquires Edge-Computing Network Spanning Forty Countries',
+    'The Startup That\'s Replacing Entire Accounting Departments With One API',
+    'Why Every Fortune 500 CFO Is Suddenly Interested in Inference Costs',
+    'Remote Work Is Back — and It Looks Nothing Like 2021',
+    'DoorDash Pivots to B2B Logistics After Consumer Growth Plateau',
+    'How a Tiny Founder Studio Out-Executed a $50B Competitor',
+    'Interest Rates Fall Again as Fed Signals Sustained Easing Path',
+    'Nvidia\'s Market Cap Crosses $4 Trillion. Analysts Say There\'s More Room.',
+  ],
+  Culture: [
+    'The Unexpected Renaissance of Independent Bookstores in the AI Era',
+    'How Generative Art Became the Most Contested Space in Contemporary Culture',
+    'Inside the Studio Where Human and Machine Co-Author Every Piece',
+    'This Graphic Novel Was Drawn by a Neural Network and a Blind Artist',
+    'Music Is More Popular Than Ever. Musicians Are More Broke Than Ever.',
+    'Tokyo\'s Night Markets Are Becoming Architecture',
+    'The Novelist Who Trained an AI on Her Own Prose — Then Deleted It',
+    'Why the Best TV of 2026 Is Being Made for Audiences of Forty',
+  ],
+  Health: [
+    'GLP-1 Drugs Now Show Protective Effects Against Alzheimer\'s Progression',
+    'WHO Declares New Variant of Concern After Immune Evasion Data Emerges',
+    'Wearable CGM Cleared for General Consumers Without Prescription',
+    'Ultra-Processed Foods Linked to Cognitive Decline in Thirty-Year Study',
+    'Mental Health Apps Show Measurable Outcomes for the First Time',
+    'Precision Oncology Hits 60% Remission Rate in Pancreatic Cancer Trial',
+    'New Vaccine Platform Reduces RSV Hospitalizations by 80%',
+  ],
+  Politics: [
+    'Senate Passes Landmark AI Governance Act After Eighteen Months of Debate',
+    'EU Digital Services Act Enforcement Sweeps Finds Widespread Violations',
+    'Local Elections Deliver Shock Results in Seven Swing Districts',
+    'NSA Leak Reveals Scope of Domestic Surveillance Expansion Since 2023',
+    'Climate Finance Deal Signed by 140 Nations Enters Implementation Phase',
+    'Supreme Court Rules on Section 230 in Closely Watched Platform Case',
+    'WHO Director-General Calls for Pandemic Treaty Emergency Session',
+  ],
+  Breaking: [
+    'Breaking: Major Undersea Cable Cut Disrupts Asia-Pacific Internet Traffic',
+    'DEVELOPING: Magnitude 7.1 Quake Strikes Coastal Japan, Tsunami Warning Issued',
+    'LIVE: SpaceX Artemis II Launch Window Opens in 48 Hours After Scrub',
+    'Breaking: Fed Announces Emergency Rate Cut After Markets Open Sharply Lower',
+    'URGENT: WHO Convenes Emergency Committee on Novel Pathogen Reports',
+    'Breaking: Landmark Tech Antitrust Ruling Expected Within the Hour',
+  ],
+};
+
+const EXCERPT_BANK = [
+  'A team of researchers at Stanford has published findings that challenge conventional understanding in ways the field wasn\'t prepared for.',
+  'The implications extend far beyond the immediate announcement, touching industries that have remained largely unchanged for decades.',
+  'Three independent teams reached the same conclusion within weeks of each other — a convergence that rarely happens in this field.',
+  'Industry analysts are calling it a paradigm shift, though insiders say the real work started years before anyone was paying attention.',
+  'Early adopters report performance gains that seem implausible until you examine the underlying architecture in detail.',
+  'The story behind this breakthrough is as much about what failed repeatedly as it is about what finally worked.',
+  'Regulators are watching closely. So far, no enforcement action has been taken, but that may be about to change.',
+  'Behind the headline number is a more complicated story involving tradeoffs that aren\'t getting nearly enough attention.',
+  'We spoke to twelve people inside the organization. None of them agreed to be named. All of them told us the same thing.',
+  'The technology has existed in research form for three years. What changed is who\'s willing to deploy it at production scale.',
+  'Critics point to reproducibility gaps in the published data. Proponents say those critics have financial interests in the status quo.',
+  'This is the fourth time a similar announcement has been made. The first three didn\'t pan out. Here\'s why this one might be different.',
+  'The original patent application was filed in 2019 by a graduate student who had no idea what she\'d stumbled onto.',
+  'It takes less than two seconds to understand what\'s remarkable about this. It takes considerably longer to understand why it matters.',
+  'The number that matters isn\'t in the press release. It\'s buried in supplementary materials on page forty-three.',
+  'There\'s a version of this story where everything goes wrong. We\'re not sure which version we\'re living in yet.',
+  'Performance in controlled conditions told one story. Performance at scale is telling a very different one.',
+];
+
+const AGO = ['2m','5m','11m','18m','31m','47m','1h','2h','3h','5h','8h','12h','1d','2d','3d'];
+
+function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function randInt(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }
+
+function generateArticles(n) {
+  const articles = [];
+  // ensure ~6 breaking
+  const breakingIdxs = new Set();
+  while(breakingIdxs.size < 6) breakingIdxs.add(randInt(0, n-1));
+
+  for (let i = 0; i < n; i++) {
+    const isBreaking = breakingIdxs.has(i);
+    const cat = isBreaking ? 'Breaking' : rand(CATS.filter(c=>c!=='Breaking'));
+    const titleArr = TITLE_BANKS[cat] || TITLE_BANKS.Tech;
+    const title = rand(titleArr);
+    const hasExcerpt = Math.random() > 0.25;
+    const excerptCount = hasExcerpt ? randInt(1,3) : 0;
+    const excerpts = [];
+    for(let e=0; e<excerptCount; e++) excerpts.push(rand(EXCERPT_BANK));
+    const excerpt = excerpts.join(' ');
+    const hasImg = Math.random() > 0.38;
+    const imgH = hasImg ? rand([110,130,150,170,190]) : 0;
+    const likes = randInt(12, 2840);
+    const comments = randInt(0, 312);
+    const readTime = randInt(2, 14);
+
+    articles.push({
+      id: i,
+      cat, title, excerpt, hasImg, imgH,
+      author: rand(AUTHORS),
+      ago: rand(AGO),
+      likes, comments, readTime,
+      isBreaking,
+      isFeatured: !isBreaking && Math.random() < 0.08,
+    });
+  }
+  return articles;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PRE-MEASUREMENT — Pretext computes all card heights before render
+// ─────────────────────────────────────────────────────────────────
+const COL_COUNT = 4;
+const GAP = 14;
+const VIEWPORT_PADDING = GAP;
+const CARD_PADDING = 14; // .card-body padding
+
+function computeCardHeight(article, colWidth) {
+  const bodyWidth = colWidth - CARD_PADDING * 2;
+
+  // Title height (Cormorant Garamond 600, size depends on title length)
+  const titleFontSize = article.title.length > 60 ? 15 : article.title.length > 40 ? 17 : 19;
+  const titleH = Pretext.layout(
+    Pretext.prepare(article.title, `600 ${titleFontSize}px "Cormorant Garamond", serif`),
+    bodyWidth, titleFontSize * 1.28
+  ).height;
+
+  // Excerpt height
+  let excerptH = 0;
+  if (article.excerpt) {
+    excerptH = Pretext.layout(
+      Pretext.prepare(article.excerpt, `400 10.8px "Azeret Mono", monospace`),
+      bodyWidth, 10.8 * 1.7
+    ).height + 10; // margin-bottom
+  }
+
+  // Fixed heights
+  const metaTopH = 28;       // cat pill + ago
+  const metaBotH = 24;       // author / actions row
+  const breakingFlagH = article.isBreaking ? 22 : 0;
+  const imageH = article.imgH;
+  const paddingV = CARD_PADDING * 2;
+
+  return imageH + paddingV + breakingFlagH + metaTopH + titleH + excerptH + metaBotH;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MASONRY LAYOUT — column-based greedy assignment
+// ─────────────────────────────────────────────────────────────────
+function buildMasonry(articles, containerWidth) {
+  const colW = Math.floor((containerWidth - VIEWPORT_PADDING*2 - GAP*(COL_COUNT-1)) / COL_COUNT);
+  const colHeights = new Array(COL_COUNT).fill(VIEWPORT_PADDING);
+  const positions = [];
+
+  for (const a of articles) {
+    const h = computeCardHeight(a, colW);
+    const col = colHeights.indexOf(Math.min(...colHeights));
+    const x = VIEWPORT_PADDING + col * (colW + GAP);
+    const y = colHeights[col];
+    positions.push({ x, y, w: colW, h, col });
+    colHeights[col] += h + GAP;
+  }
+
+  const totalH = Math.max(...colHeights) + VIEWPORT_PADDING;
+  return { positions, totalH, colW };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CARD RENDERING — HTML string → DOM insertion (zero measurement)
+// ─────────────────────────────────────────────────────────────────
+const IMG_PALETTES = {
+  Tech:     [['#0D1B2A','#1B4F72'],['#0B1D2D','#154360']],
+  Science:  [['#0A2E2A','#145A4A'],['#0D2B26','#0F7B6C']],
+  Business: [['#2A1D08','#7D4E10'],['#1C1405','#5D3A0B']],
+  Culture:  [['#1E0A2E','#6C2891'],['#22083A','#7D2FA0']],
+  Health:   [['#0A2A12','#1A7A35'],['#081C0D','#145E28']],
+  Politics: [['#2E1A08','#8A4A10'],['#1A0F05','#6B380B']],
+  Breaking: [['#2E0808','#8A1515'],['#1C0505','#6B1010']],
+};
+const IMG_SYMBOLS = {
+  Tech:'⬡',Science:'◎',Business:'◈',Culture:'◉',Health:'⊕',Politics:'◫',Breaking:'◈'
+};
+
+function renderCard(article, pos) {
+  const palette = rand(IMG_PALETTES[article.cat]||IMG_PALETTES.Tech);
+  const sym = IMG_SYMBOLS[article.cat]||'◇';
+  const titleSize = article.title.length>60?15:article.title.length>40?17:19;
+  const cls = ['card', article.isBreaking?'breaking':'', article.isFeatured?'featured':''].filter(Boolean).join(' ');
+
+  const imgHtml = article.hasImg ? `
+    <div class="card-img" style="height:${article.imgH}px;background:linear-gradient(135deg,${palette[0]},${palette[1]});display:flex;align-items:center;justify-content:center;font-size:2rem;opacity:.6;user-select:none;">${sym}</div>` : '';
+
+  const breakHtml = article.isBreaking ? `
+    <div class="breaking-flag"><div class="breaking-dot"></div>Breaking</div>` : '';
+
+  const excerptHtml = article.excerpt ? `
+    <p class="card-excerpt">${article.excerpt.length>200?article.excerpt.slice(0,200)+'…':article.excerpt}</p>` : '';
+
+  return `<div class="${cls}" data-id="${article.id}" style="left:${pos.x}px;top:${pos.y}px;width:${pos.w}px;">
+  ${imgHtml}
+  <div class="card-body">
+    ${breakHtml}
+    <div class="card-meta-top">
+      <span class="cat-pill ${article.cat}">${article.cat}</span>
+      <span class="card-ago">${article.ago} ago</span>
+    </div>
+    <h2 class="card-title" style="font-size:${titleSize}px">${article.title}</h2>
+    ${excerptHtml}
+    <div class="card-meta-bot">
+      <span class="card-author">${article.author}</span>
+      <span class="meta-sep">·</span>
+      <span>${article.readTime} min</span>
+      <div class="card-actions">
+        <span class="action-btn" data-id="${article.id}" data-action="like">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          ${article.likes}
+        </span>
+        <span class="action-btn" data-action="comment">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          ${article.comments}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// VIRTUAL SCROLL — render only visible cards + buffer
+// ─────────────────────────────────────────────────────────────────
+const BUFFER = 400; // px above/below viewport to pre-render
+let renderedIds = new Set();
+
+function getVisibleRange(positions, scrollTop, viewportH) {
+  const top = scrollTop - BUFFER;
+  const bot = scrollTop + viewportH + BUFFER;
+  const visible = [];
+  for (let i = 0; i < positions.length; i++) {
+    const p = positions[i];
+    if (p.y + p.h >= top && p.y <= bot) visible.push(i);
+  }
+  return visible;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MAIN APP STATE
+// ─────────────────────────────────────────────────────────────────
+let allArticles = [];
+let filteredArticles = [];
+let positions = [];
+let totalH = 0;
+let activeFilter = 'All';
+let searchQuery = '';
+let sortMode = 'Latest'; // Latest | Trending
+let containerWidth = 0;
+
+const viewport = document.getElementById('viewport');
+const gridInner = document.getElementById('gridInner');
+const gridCanvas = document.getElementById('gridCanvas');
+const emptyState = document.getElementById('emptyState');
+
+function applyFilters() {
+  let result = allArticles;
+  if (activeFilter !== 'All') result = result.filter(a => a.cat === activeFilter);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    result = result.filter(a =>
+      a.title.toLowerCase().includes(q) ||
+      a.excerpt.toLowerCase().includes(q) ||
+      a.author.toLowerCase().includes(q)
+    );
+  }
+  if (sortMode === 'Trending') {
+    result = [...result].sort((a,b) => b.likes - a.likes);
+  }
+  filteredArticles = result;
+}
+
+function rebuildLayout() {
+  containerWidth = viewport.clientWidth;
+  const layout = buildMasonry(filteredArticles, containerWidth);
+  positions = layout.positions;
+  totalH = layout.totalH;
+  gridInner.style.height = totalH + 'px';
+  renderedIds = new Set();
+  gridCanvas.innerHTML = '';
+
+  const hasItems = filteredArticles.length > 0;
+  emptyState.classList.toggle('show', !hasItems);
+  gridInner.style.display = hasItems ? 'block' : 'none';
+
+  updateHUD();
+  renderVisible();
+}
+
+function renderVisible() {
+  const scrollTop = viewport.scrollTop;
+  const viewH = viewport.clientHeight;
+  const visibleIdxs = getVisibleRange(positions, scrollTop, viewH);
+
+  // Remove cards that scrolled far out
+  const keepIds = new Set(visibleIdxs.map(i => filteredArticles[i]?.id));
+  for (const id of renderedIds) {
+    if (!keepIds.has(id)) {
+      const el = gridCanvas.querySelector(`[data-id="${id}"]`);
+      if (el) el.remove();
+      renderedIds.delete(id);
+    }
+  }
+
+  // Add newly visible cards
+  const frags = [];
+  for (const idx of visibleIdxs) {
+    const a = filteredArticles[idx];
+    if (!a || renderedIds.has(a.id)) continue;
+    frags.push(renderCard(a, positions[idx]));
+    renderedIds.add(a.id);
+  }
+  if (frags.length) gridCanvas.insertAdjacentHTML('beforeend', frags.join(''));
+
+  // Update metrics
+  document.getElementById('m-rendered').textContent = renderedIds.size;
+  document.getElementById('h-visible').textContent = renderedIds.size;
+}
+
+function updateHUD() {
+  const n = filteredArticles.length;
+  document.getElementById('m-total').textContent = n;
+  document.getElementById('m-measured').textContent = Pretext.cacheSize();
+  document.getElementById('h-cached').textContent = Pretext.cacheSize();
+  document.getElementById('h-total').textContent = n;
+  document.getElementById('domBarNum').textContent = n;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// INTERACTIONS
+// ─────────────────────────────────────────────────────────────────
+viewport.addEventListener('scroll', renderVisible, { passive: true });
+
+window.addEventListener('resize', () => {
+  clearTimeout(window._resizeTimer);
+  window._resizeTimer = setTimeout(rebuildLayout, 120);
+});
+
+document.getElementById('catBtns').addEventListener('click', e => {
+  const btn = e.target.closest('.cat-btn');
+  if (!btn) return;
+  activeFilter = btn.dataset.cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  viewport.scrollTop = 0;
+  applyFilters();
+  rebuildLayout();
+});
+
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQuery = e.target.value.trim();
+  applyFilters();
+  viewport.scrollTop = 0;
+  rebuildLayout();
+});
+
+document.getElementById('sortBtn').addEventListener('click', function() {
+  sortMode = sortMode === 'Latest' ? 'Trending' : 'Latest';
+  this.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M11 18h2"/></svg> ${sortMode}`;
+  applyFilters();
+  viewport.scrollTop = 0;
+  rebuildLayout();
+});
+
+gridCanvas.addEventListener('click', e => {
+  const btn = e.target.closest('.action-btn');
+  if (!btn || btn.dataset.action !== 'like') return;
+  btn.classList.toggle('liked');
+});
+
+// ─────────────────────────────────────────────────────────────────
+// BOOTSTRAP — generate, measure, render
+// ─────────────────────────────────────────────────────────────────
+async function bootstrap() {
+  const fill = document.getElementById('progressFill');
+  const loading = document.getElementById('loading');
+
+  // Step 1: wait for fonts
+  fill.style.width = '15%';
+  await document.fonts.ready;
+  fill.style.width = '35%';
+
+  // Step 2: generate articles
+  allArticles = generateArticles(500);
+  fill.style.width = '55%';
+
+  // Step 3: pre-measure ALL card heights with Pretext (the key insight)
+  // This is where Pretext shines — we compute every height arithmetically,
+  // touching zero DOM nodes, triggering zero reflows
+  const t0 = performance.now();
+  const previewWidth = viewport.clientWidth;
+  const colW = Math.floor((previewWidth - VIEWPORT_PADDING*2 - GAP*(COL_COUNT-1)) / COL_COUNT);
+
+  // Batch measurements via requestIdleCallback-style chunking
+  const CHUNK = 100;
+  for (let i = 0; i < allArticles.length; i += CHUNK) {
+    const slice = allArticles.slice(i, i + CHUNK);
+    slice.forEach(a => computeCardHeight(a, colW)); // warm the cache
+    fill.style.width = `${55 + 35*(i/allArticles.length)}%`;
+    await new Promise(r => setTimeout(r, 0)); // yield to browser
+  }
+  const measureMs = (performance.now() - t0).toFixed(1);
+  fill.style.width = '100%';
+
+  // Update measure time in HUD
+  document.getElementById('h-time').textContent = `${measureMs}ms`;
+  document.getElementById('m-measured').textContent = Pretext.cacheSize();
+
+  // Step 4: initial layout and render
+  applyFilters();
+  await new Promise(r => setTimeout(r, 80));
+
+  document.getElementById('app').style.visibility = 'visible';
+  rebuildLayout();
+
+  // Fade out loading screen
+  loading.classList.add('fade');
+  setTimeout(() => loading.remove(), 400);
+
+  // Animate the DOM-bar counter for visual impact
+  let domCount = 0;
+  const domTarget = 500;
+  const domBar = document.getElementById('domBar');
+  const domBarNum = document.getElementById('domBarNum');
+  const step = Math.ceil(domTarget / 40);
+  const ticker = setInterval(() => {
+    domCount = Math.min(domCount + step, domTarget);
+    const pct = (domCount / domTarget * 100).toFixed(0);
+    domBar.style.width = pct + '%';
+    domBarNum.textContent = domCount;
+    if (domCount >= domTarget) clearInterval(ticker);
+  }, 30);
+}
+
+bootstrap();
+</script>
+</body>
+</html>
