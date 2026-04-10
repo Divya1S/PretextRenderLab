@@ -1,0 +1,317 @@
+
+<h2 class="sr-only">Interactive demo: Pretext canvas-based text measurement vs DOM measurement for a 10,000-item virtualized chat list, showing performance difference</h2>
+
+<style>
+*{box-sizing:border-box}
+.root{font-family:var(--font-sans);padding:1rem 0}
+.mcard{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
+.mlabel{font-size:10px;color:var(--color-text-tertiary);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.07em;margin:0 0 3px}
+.mvalue{font-size:20px;font-weight:500;margin:0;color:var(--color-text-primary);font-family:var(--font-mono)}
+.msub{font-size:10px;color:var(--color-text-tertiary);margin:2px 0 0;font-family:var(--font-mono)}
+.mtoggle{display:flex;gap:1px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:3px}
+.mbtn{padding:5px 14px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-size:12px;font-family:var(--font-mono);color:var(--color-text-secondary)}
+.mbtn.on{background:var(--color-background-primary);color:var(--color-text-primary);border:0.5px solid var(--color-border-tertiary)}
+.bbtn{padding:5px 12px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:transparent;cursor:pointer;font-size:11px;font-family:var(--font-mono);color:var(--color-text-secondary)}
+.bbtn:hover{background:var(--color-background-secondary)}
+.bbtn:disabled{opacity:.5;cursor:default}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-family:var(--font-mono);font-weight:500}
+.badge-green{background:var(--color-background-success);color:var(--color-text-success)}
+.badge-red{background:var(--color-background-danger);color:var(--color-text-danger)}
+.dot{width:5px;height:5px;border-radius:50%;display:inline-block}
+</style>
+
+<div class="root">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <h2 style="font-size:15px;font-weight:500;margin:0;font-family:var(--font-mono);color:var(--color-text-primary)">pretext<span style="color:var(--color-text-tertiary)">.js</span> / virtualized feed</h2>
+        <span id="mode-badge" class="badge badge-green"><span class="dot" style="background:currentColor"></span>canvas mode</span>
+      </div>
+      <p style="font-size:11px;color:var(--color-text-secondary);margin:0;font-family:var(--font-mono)">10,000 variable-height messages · zero DOM reads in hot path</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <div class="mtoggle">
+        <button class="mbtn on" id="btn-pretext" onclick="setMode('pretext')">pretext</button>
+        <button class="mbtn" id="btn-dom" onclick="setMode('dom')">dom</button>
+      </div>
+      <button class="bbtn" id="bench-btn" onclick="runBenchmark()">benchmark ↗</button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:8px">
+    <div class="mcard">
+      <p class="mlabel">fps</p>
+      <p class="mvalue" id="m-fps">—</p>
+      <p class="msub">live</p>
+    </div>
+    <div class="mcard">
+      <p class="mlabel">init time</p>
+      <p class="mvalue" id="m-time">—</p>
+      <p class="msub" id="m-time-sub">all 10k items</p>
+    </div>
+    <div class="mcard">
+      <p class="mlabel">dom reads</p>
+      <p class="mvalue" id="m-reads">0</p>
+      <p class="msub" id="m-reads-sub">reflows</p>
+    </div>
+    <div class="mcard">
+      <p class="mlabel">rendered</p>
+      <p class="mvalue" id="m-nodes">—</p>
+      <p class="msub">of 10,000</p>
+    </div>
+  </div>
+
+  <canvas id="spark" style="width:100%;height:28px;display:block;margin-bottom:6px"></canvas>
+
+  <div id="feed" style="height:420px;overflow-y:scroll;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);background:var(--color-background-secondary);position:relative">
+    <div id="spacer" style="position:relative">
+      <div id="items" style="position:absolute;top:0;left:0;right:0"></div>
+    </div>
+  </div>
+
+  <div id="bench-out" style="display:none;margin-top:8px;background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 14px">
+    <p class="mlabel" style="margin-bottom:10px">benchmark — 300 items measured</p>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div>
+        <p style="font-size:10px;color:var(--color-text-tertiary);margin:0 0 2px;font-family:var(--font-mono)">pretext (canvas)</p>
+        <p style="font-size:18px;font-weight:500;margin:0;font-family:var(--font-mono);color:var(--color-text-success)" id="b-pt">—</p>
+      </div>
+      <div style="font-size:16px;color:var(--color-text-tertiary)">vs</div>
+      <div>
+        <p style="font-size:10px;color:var(--color-text-tertiary);margin:0 0 2px;font-family:var(--font-mono)">dom (getBoundingClientRect)</p>
+        <p style="font-size:18px;font-weight:500;margin:0;font-family:var(--font-mono);color:var(--color-text-danger)" id="b-dom">—</p>
+      </div>
+      <div style="margin-left:auto">
+        <p style="font-size:10px;color:var(--color-text-tertiary);margin:0 0 2px;font-family:var(--font-mono)">speedup</p>
+        <p style="font-size:18px;font-weight:500;margin:0;font-family:var(--font-mono)" id="b-sx">—</p>
+      </div>
+    </div>
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:4px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:9px;font-family:var(--font-mono);color:var(--color-text-tertiary);width:52px">pretext</span>
+        <div style="flex:1;height:5px;background:var(--color-background-primary);border-radius:3px;overflow:hidden"><div id="bar-pt" style="height:100%;background:var(--color-background-success);border-radius:3px;width:0;transition:width .5s"></div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:9px;font-family:var(--font-mono);color:var(--color-text-tertiary);width:52px">dom</span>
+        <div style="flex:1;height:5px;background:var(--color-background-primary);border-radius:3px;overflow:hidden"><div id="bar-dom" style="height:100%;background:var(--color-background-danger);border-radius:3px;width:0;transition:width .5s"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOTAL=10000,PAD_V=24,PAD_L=56,PAD_R=16,LH=20.15;
+const FONT='13px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
+const NAMES=['Alice Chen','Bob K.','Priya Nair','James Liu','Sara M.','Kai R.','Dev Patel','Mia T.','Carlos V.','Yuki H.'];
+const FILLS=['#9FE1CB','#FAC775','#F5C4B3','#B5D4F4','#C0DD97','#F4C0D1','#CECBF6','#D3D1C7','#85B7EB','#F0997B'];
+const TCOLS=['#085041','#633806','#712B13','#0C447C','#3B6D11','#72243E','#3C3489','#444441','#185FA5','#993C1D'];
+const POOL=[
+  'sounds good 👍',
+  'can we push the deadline by a day?',
+  'approved, shipping it now',
+  'on it',
+  'reviewed the PR — logic looks solid, left a few style comments',
+  'who has context on the caching layer? seeing latency spikes on the CDN edge nodes',
+  'done',
+  'wait, which branch are we merging into?',
+  'design looks great! can we increase the contrast on secondary text? hard to read at smaller sizes',
+  'I\'ll take a look after standup',
+  'this is exactly the issue we discussed last sprint — fix is in the layout pipeline. we need to pre-compute heights rather than measuring after render',
+  '🚀',
+  'just pushed a fix for the reflow issue — switching to canvas-based measurement eliminated layout thrashing. FPS went from 23 to 60 on the stress test',
+  'merged',
+  'scroll perf is so much better now, what changed?',
+  'we were calling getBoundingClientRect() in a tight loop. it forces a synchronous layout pass every single call. replaced it with canvas text measurement — pure arithmetic from there. zero DOM in the hot path',
+  'ship it',
+  'does this work on Firefox?',
+  'yes — tested Chrome, Firefox, Safari, Edge. canvas.measureText() is universal',
+  'nice work',
+  'blocking issue in prod — virtualized list miscalculates heights on window resize. need to invalidate the height cache on resize and recompute',
+  'fixing now',
+  'anyone know the font size for the chat bubbles?',
+  '13px, line-height 1.55',
+  'the segment measurement approach is clever — measure each word once, cache it, layout pass is pure addition. no DOM anywhere',
+  'lgtm',
+  'quick reminder: standup in 5',
+  'the new rendering mode cut time-to-interactive by 40% on low-end devices',
+  'can you add a loading skeleton? it\'s jarring when 10k items pop in at once',
+  'pretext is 15kb minified, zero dependencies — negligible bundle impact',
+  'benchmark is showing ~500x speedup vs DOM measurement on a 1000-item sample',
+  'the accessibility tree stays intact too — text lives in DOM, screen readers work perfectly',
+];
+const rng=(n=>()=>((n^=n<<13,n^=n>>17,n^=n<<5,Math.abs(n)/2147483647)))(42);
+const msgs=Array.from({length:TOTAL},(_,i)=>{
+  const ni=i%NAMES.length;
+  return{id:i,name:NAMES[ni],text:POOL[Math.floor(rng()*POOL.length)],fill:FILLS[ni],tc:TCOLS[ni],init:NAMES[ni].split(' ').map(w=>w[0]).join('').slice(0,2)};
+});
+
+const mc=document.createElement('canvas'),mx=mc.getContext('2d');
+function prep(text){
+  mx.font=FONT;
+  const sp=mx.measureText(' ').width;
+  return{segs:text.split(/\s+/).map(w=>({width:mx.measureText(w).width})),sp};
+}
+function lay(p,cw){
+  let lines=1,x=0;
+  const{segs,sp}=p;
+  for(let i=0;i<segs.length;i++){
+    const sw=segs[i].width,gap=i<segs.length-1?sp:0;
+    if(x>0&&x+sw>cw){lines++;x=sw+gap;}
+    else x+=sw+gap;
+  }
+  return Math.max(1,lines)*LH+PAD_V;
+}
+
+let mode='pretext',heights=null,cum=null,domH={},domReads=0,initMs=null,textW=0,rendR=[-1,-1];
+
+function initPretext(){
+  const feed=document.getElementById('feed');
+  textW=feed.clientWidth-PAD_L-PAD_R;
+  const t0=performance.now();
+  heights=new Float32Array(TOTAL);
+  cum=new Float32Array(TOTAL+1);
+  for(let i=0;i<TOTAL;i++){
+    heights[i]=lay(prep(msgs[i].text),textW);
+    cum[i+1]=cum[i]+heights[i];
+  }
+  initMs=performance.now()-t0;
+  document.getElementById('spacer').style.height=cum[TOTAL]+'px';
+  document.getElementById('m-time').textContent=initMs.toFixed(1)+'ms';
+  render();
+}
+
+function domMeasure(i){
+  if(domH[i]!==undefined)return domH[i];
+  const d=document.createElement('div');
+  d.style.cssText=`position:fixed;left:-9999px;top:0;width:${textW}px;font:${FONT};line-height:1.55;word-break:break-word`;
+  d.textContent=msgs[i].text;
+  document.body.appendChild(d);
+  const h=d.getBoundingClientRect().height+PAD_V;
+  document.body.removeChild(d);
+  domH[i]=h;
+  domReads++;
+  document.getElementById('m-reads').textContent=domReads.toLocaleString();
+  return h;
+}
+
+function getH(i){return mode==='pretext'?heights[i]:domMeasure(i);}
+
+function findFirst(st){
+  if(mode==='pretext'){
+    let lo=0,hi=TOTAL-1;
+    while(lo<hi){const m=(lo+hi)>>1;if(cum[m+1]<=st)lo=m+1;else hi=m;}
+    return lo;
+  }
+  let y=0;
+  for(let i=0;i<TOTAL;i++){const h=domH[i]||44;if(y+h>st)return i;y+=h;}
+  return 0;
+}
+
+function getTop(i){
+  if(mode==='pretext')return cum[i];
+  let y=0;for(let j=0;j<i;j++)y+=domH[j]||44;return y;
+}
+
+function render(){
+  const feed=document.getElementById('feed');
+  const st=feed.scrollTop,vh=feed.clientHeight;
+  let first=findFirst(st),last=first,y=getTop(first);
+  while(last<TOTAL&&y<st+vh+400){y+=getH(last);last++;}
+  if(first===rendR[0]&&last===rendR[1])return;
+  rendR=[first,last];
+  const el=document.getElementById('items'),fr=document.createDocumentFragment();
+  el.innerHTML='';
+  let top=getTop(first);
+  for(let i=first;i<last&&i<TOTAL;i++){
+    const m=msgs[i],h=getH(i),d=document.createElement('div');
+    d.style.cssText=`position:absolute;top:${top}px;left:0;right:0;height:${Math.round(h)}px;padding:12px ${PAD_R}px 12px 0;display:flex;align-items:flex-start;gap:10px;border-bottom:0.5px solid var(--color-border-tertiary)`;
+    d.innerHTML=`<div style="width:28px;height:28px;border-radius:50%;background:${m.fill};color:${m.tc};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;margin-left:14px;margin-top:1px">${m.init}</div><div style="flex:1;min-width:0"><p style="font-size:10px;font-weight:500;color:var(--color-text-secondary);font-family:var(--font-mono);margin:0 0 3px">${m.name} <span style="font-weight:400;color:var(--color-text-tertiary)">#${m.id+1}</span></p><p style="font-size:13px;line-height:1.55;color:var(--color-text-primary);margin:0;word-break:break-word">${m.text}</p></div>`;
+    fr.appendChild(d);top+=h;
+  }
+  el.appendChild(fr);
+  document.getElementById('m-nodes').textContent=(last-first).toString();
+}
+
+document.getElementById('feed').addEventListener('scroll',render);
+
+function setMode(m){
+  mode=m;
+  document.getElementById('btn-pretext').classList.toggle('on',m==='pretext');
+  document.getElementById('btn-dom').classList.toggle('on',m==='dom');
+  const badge=document.getElementById('mode-badge');
+  if(m==='pretext'){
+    badge.className='badge badge-green';badge.innerHTML='<span class="dot" style="background:currentColor"></span>canvas mode';
+    document.getElementById('spacer').style.height=cum[TOTAL]+'px';
+    document.getElementById('m-time').textContent=initMs.toFixed(1)+'ms';
+    document.getElementById('m-time-sub').textContent='all 10k items';
+    document.getElementById('m-reads').textContent='0';
+    document.getElementById('m-reads-sub').textContent='reflows';
+  }else{
+    badge.className='badge badge-red';badge.innerHTML='<span class="dot" style="background:currentColor"></span>dom mode';
+    domH={};domReads=0;
+    document.getElementById('spacer').style.height=(TOTAL*44)+'px';
+    document.getElementById('m-time').textContent='lazy';
+    document.getElementById('m-time-sub').textContent='measured per scroll';
+    document.getElementById('m-reads').textContent='0';
+    document.getElementById('m-reads-sub').textContent='and counting…';
+  }
+  rendR=[-1,-1];
+  document.getElementById('feed').scrollTop=0;
+  render();
+}
+
+async function runBenchmark(){
+  const btn=document.getElementById('bench-btn');
+  btn.textContent='running…';btn.disabled=true;
+  const N=300;
+  await new Promise(r=>setTimeout(r,20));
+  mx.font=FONT;
+  const t0=performance.now();
+  for(let i=0;i<N;i++){const p=prep(msgs[i%POOL.length].text);lay(p,textW);}
+  const ptMs=performance.now()-t0;
+  await new Promise(r=>setTimeout(r,20));
+  const t1=performance.now();
+  for(let i=0;i<N;i++){
+    const d=document.createElement('div');
+    d.style.cssText=`position:fixed;left:-9999px;top:0;width:${textW}px;font:${FONT};line-height:1.55;word-break:break-word`;
+    d.textContent=msgs[i%POOL.length].text;
+    document.body.appendChild(d);d.getBoundingClientRect();document.body.removeChild(d);
+  }
+  const domMs=performance.now()-t1;
+  const sx=Math.round(domMs/ptMs);
+  document.getElementById('b-pt').textContent=ptMs.toFixed(1)+'ms';
+  document.getElementById('b-dom').textContent=domMs.toFixed(0)+'ms';
+  document.getElementById('b-sx').textContent=sx+'x faster';
+  document.getElementById('bench-out').style.display='block';
+  const maxMs=Math.max(ptMs,domMs);
+  setTimeout(()=>{
+    document.getElementById('bar-pt').style.width=(ptMs/maxMs*100)+'%';
+    document.getElementById('bar-dom').style.width=(domMs/maxMs*100)+'%';
+  },50);
+  btn.textContent='benchmark ↗';btn.disabled=false;
+}
+
+const spark=document.getElementById('spark'),sc=spark.getContext('2d');
+const FH=80,fps_arr=new Array(FH).fill(60);
+let lastT=performance.now(),frames=0;
+function fpsLoop(now){
+  frames++;
+  if(now-lastT>=400){
+    const fps=Math.min(Math.round(frames/(now-lastT)*1000),120);
+    fps_arr.shift();fps_arr.push(fps);frames=0;lastT=now;
+    document.getElementById('m-fps').textContent=Math.min(fps,60);
+    const W=spark.offsetWidth*devicePixelRatio,H=28*devicePixelRatio;
+    spark.width=W;spark.height=H;
+    const bw=W/FH,dark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+    for(let i=0;i<FH;i++){
+      const r=Math.min(fps_arr[i],60)/60,bh=r*H;
+      sc.fillStyle=r>.8?(dark?'#5DCAA5':'#1D9E75'):r>.5?(dark?'#FAC775':'#BA7517'):(dark?'#F09595':'#A32D2D');
+      sc.fillRect(i*bw,H-bh,Math.max(bw-1,1),bh);
+    }
+  }
+  requestAnimationFrame(fpsLoop);
+}
+
+window.addEventListener('resize',()=>{if(heights)initPretext();});
+setTimeout(()=>{initPretext();requestAnimationFrame(fpsLoop);},100);
+</script>
