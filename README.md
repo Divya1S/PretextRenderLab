@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <a href="https://your-netlify-link.netlify.app">🌐 Live Demo</a>
+  <a href="https://your-netlify-link.netlify.app](https://whimsical-gingersnap-2f5e8a.netlify.app">🌐 Live Demo</a>
 </p>
 
 <hr/>
@@ -52,12 +52,6 @@ This project explores an alternative approach:
 </ul>
 
 <hr/>
-
-<h2>🚀 Live Demo</h2>
-<ul>
-  <li><a href="https://your-link.netlify.app">Chronicle Feed</a></li>
-  <li><a href="https://your-link.netlify.app">Virtualized Chat</a></li>
-</ul>
 
 <hr/>
 
